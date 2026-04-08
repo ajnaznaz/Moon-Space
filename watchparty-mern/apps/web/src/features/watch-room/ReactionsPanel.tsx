@@ -4,6 +4,7 @@ import type { Socket } from "socket.io-client";
 interface Props {
   socket: Socket;
   roomId: string;
+  attachToPlayer?: boolean;
 }
 
 const fallbackGifs = [
@@ -12,10 +13,11 @@ const fallbackGifs = [
   "https://media.giphy.com/media/26BRv0ThflsHCqDrG/giphy.gif"
 ];
 
-export function ReactionsPanel({ socket, roomId }: Props) {
+export function ReactionsPanel({ socket, roomId, attachToPlayer = false }: Props) {
   const [gifQuery, setGifQuery] = useState("");
   const [gifResults, setGifResults] = useState<string[]>([]);
   const [searching, setSearching] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const giphyApiKey = import.meta.env.VITE_GIPHY_API_KEY as string | undefined;
   const quickEmojis = useMemo(() => ["🔥", "😂", "😍", "👏", "😱", "🚀"], []);
 
@@ -54,7 +56,7 @@ export function ReactionsPanel({ socket, roomId }: Props) {
   }
 
   return (
-    <section className="card">
+    <section className={attachToPlayer ? "card reaction-dock" : "card"}>
       <h3>Live reactions</h3>
       <div className="emoji-row">
         {quickEmojis.map((emoji) => (
@@ -63,17 +65,24 @@ export function ReactionsPanel({ socket, roomId }: Props) {
           </button>
         ))}
       </div>
-      <form className="gif-search" onSubmit={(e) => void searchGifs(e)}>
-        <input value={gifQuery} onChange={(e) => setGifQuery(e.target.value)} placeholder="Search GIF reactions..." />
-        <button type="submit">{searching ? "..." : "Search"}</button>
-      </form>
-      <div className="gif-grid">
-        {gifResults.map((url) => (
-          <button key={url} type="button" className="gif-pick" onClick={() => sendGif(url)}>
-            <img src={url} alt="GIF reaction option" loading="lazy" />
-          </button>
-        ))}
-      </div>
+      <button type="button" className="ghost" onClick={() => setExpanded((prev) => !prev)}>
+        {expanded ? "Hide GIF picker" : "Open GIF picker"}
+      </button>
+      {expanded && (
+        <>
+          <form className="gif-search" onSubmit={(e) => void searchGifs(e)}>
+            <input value={gifQuery} onChange={(e) => setGifQuery(e.target.value)} placeholder="Search GIF reactions..." />
+            <button type="submit">{searching ? "..." : "Search"}</button>
+          </form>
+          <div className="gif-grid">
+            {gifResults.map((url) => (
+              <button key={url} type="button" className="gif-pick" onClick={() => sendGif(url)}>
+                <img src={url} alt="GIF reaction option" loading="lazy" />
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </section>
   );
 }

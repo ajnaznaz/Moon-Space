@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Socket } from "socket.io-client";
 
-interface Props { socket: Socket; roomId: string; }
+interface Props {
+  socket: Socket;
+  roomId: string;
+  attachToPlayer?: boolean;
+}
 
 interface PeerInfo {
   socketId: string;
@@ -14,13 +18,20 @@ type SignalPayload =
   | { type: "answer"; sdp: RTCSessionDescriptionInit }
   | { type: "ice"; candidate: RTCIceCandidateInit };
 
-export function VoiceControls({ socket, roomId }: Props) {
+export function VoiceControls({ socket, roomId, attachToPlayer = false }: Props) {
   const localStreamRef = useRef<MediaStream | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const draggingRef = useRef<{ dx: number; dy: number } | null>(null);
+  const resizingRef = useRef<{ startX: number; startY: number; startW: number; startH: number } | null>(null);
   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const remoteStreamsRef = useRef<Map<string, MediaStream>>(new Map());
   const [micEnabled, setMicEnabled] = useState(false);
   const [camEnabled, setCamEnabled] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(!attachToPlayer);
+  const [hideSelfView, setHideSelfView] = useState(false);
+  const [panelPos, setPanelPos] = useState({ x: 14, y: 14 });
+  const [panelSize, setPanelSize] = useState({ width: 320, height: 220 });
   const [peers, setPeers] = useState<PeerInfo[]>([]);
   const [status, setStatus] = useState("Voice inactive");
   const [speakerMap, setSpeakerMap] = useState<Record<string, boolean>>({});
@@ -36,6 +47,34 @@ export function VoiceControls({ socket, roomId }: Props) {
       peerConnectionsRef.current.forEach((pc) => pc.close());
       peerConnectionsRef.current.clear();
       remoteStreamsRef.current.clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    function onMove(event: PointerEvent): void {
+      const drag = draggingRef.current;
+      const resize = resizingRef.current;
+      if (drag) {
+        setPanelPos((prev) => ({
+          x: Math.max(4, prev.x + (event.movementX || 0)),
+          y: Math.max(4, prev.y + (event.movementY || 0))
+        }));
+      } else if (resize) {
+        setPanelSize({
+          width: Math.max(220, resize.startW + (event.clientX - resize.startX)),
+          height: Math.max(170, resize.startH + (event.clientY - resize.startY))
+        });
+      }
+    }
+    function onUp(): void {
+      draggingRef.current = null;
+      resizingRef.current = null;
+    }
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
     };
   }, []);
 
@@ -201,31 +240,72 @@ export function VoiceControls({ socket, roomId }: Props) {
   }, [peers, roomId, socket]);
 
   return (
-    <section className="card">
-      <h3>Live voice</h3>
-      <div className="voice-status-wrap"><span className={`voice-dot ${micEnabled ? "live" : ""}`} /><p>{status}</p></div>
-      <div className="control-row">
-        <button onClick={() => void toggleMic()}>{micEnabled ? "Mute mic" : "Enable mic"}</button>
-        <button className="ghost" onClick={() => void toggleCamera()}>{camEnabled ? "Disable camera" : "Enable camera"}</button>
-      </div>
-      <div className="cam-grid">
-        <div className="cam-tile">
-          <video ref={localVideoRef} muted autoPlay playsInline />
-          <span>You {micEnabled ? "🎙️" : "🔇"}</span>
-        </div>
-        {peers.map((peer) => (
-          <div key={peer.socketId} className="cam-tile">
-            <video
-              autoPlay
-              playsInline
-              ref={(node) => {
-                if (!node) return;
-                node.srcObject = peer.stream ?? null;
-              }}
-            />
-            <span>{peer.displayName} {speakerMap[peer.socketId] ? "🎤" : ""}</span>
+    <section className={attachToPlayer ? "voice-floating-wrap" : "card"}>
+      {!panelOpen && (
+        <button type="button" className="voice-fab ghost" onClick={() => setPanelOpen(true)}>
+          Open Camera
+        </button>
+      )}
+      <div
+        ref={panelRef}
+        className={`card voice-panel ${panelOpen ? "" : "hidden"}`}
+        style={attachToPlayer ? { left: panelPos.x, top: panelPos.y, width: panelSize.width, minHeight: panelSize.height } : undefined}
+      >
+        <div
+          className="voice-panel-head"
+          onPointerDown={(event) => {
+            if (!attachToPlayer) return;
+            draggingRef.current = { dx: event.clientX, dy: event.clientY };
+          }}
+        >
+          <h3>Live voice & cam</h3>
+          <div className="voice-panel-actions">
+            <button type="button" className="ghost" onClick={() => setHideSelfView((prev) => !prev)}>
+              {hideSelfView ? "Show me" : "Hide me"}
+            </button>
+            <button type="button" className="ghost" onClick={() => setPanelOpen(false)}>Close</button>
           </div>
-        ))}
+        </div>
+        <div className="voice-status-wrap"><span className={`voice-dot ${micEnabled ? "live" : ""}`} /><p>{status}</p></div>
+        <div className="control-row">
+          <button onClick={() => void toggleMic()}>{micEnabled ? "Mute mic" : "Enable mic"}</button>
+          <button className="ghost" onClick={() => void toggleCamera()}>{camEnabled ? "Disable camera" : "Enable camera"}</button>
+        </div>
+        <div className="cam-grid">
+          {!hideSelfView && (
+            <div className="cam-tile">
+              <video ref={localVideoRef} muted autoPlay playsInline />
+              <span>You {micEnabled ? "🎙️" : "🔇"}</span>
+            </div>
+          )}
+          {peers.map((peer) => (
+            <div key={peer.socketId} className="cam-tile">
+              <video
+                autoPlay
+                playsInline
+                ref={(node) => {
+                  if (!node) return;
+                  node.srcObject = peer.stream ?? null;
+                }}
+              />
+              <span>{peer.displayName} {speakerMap[peer.socketId] ? "🎤" : ""}</span>
+            </div>
+          ))}
+        </div>
+        {attachToPlayer && (
+          <button
+            type="button"
+            className="resize-grip"
+            onPointerDown={(event) => {
+              resizingRef.current = {
+                startX: event.clientX,
+                startY: event.clientY,
+                startW: panelSize.width,
+                startH: panelSize.height
+              };
+            }}
+          />
+        )}
       </div>
     </section>
   );

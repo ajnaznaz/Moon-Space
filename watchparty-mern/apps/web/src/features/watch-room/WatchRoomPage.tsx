@@ -58,6 +58,7 @@ function toYouTubeEmbedUrl(input: string): string {
 
 export function WatchRoomPage({ roomId, onLeaveRoom }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const playerShellRef = useRef<HTMLDivElement | null>(null);
   const suppressBroadcastRef = useRef(false);
   const socket = useMemo(() => createSocket(getToken() || ""), []);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -69,6 +70,9 @@ export function WatchRoomPage({ roomId, onLeaveRoom }: Props) {
   const [isBuffering, setIsBuffering] = useState(false);
   const [actionLoader, setActionLoader] = useState<string | null>(null);
   const [liveReactions, setLiveReactions] = useState<LiveReaction[]>([]);
+  const [showChatDock, setShowChatDock] = useState(false);
+  const [showReactionDock, setShowReactionDock] = useState(false);
+  const [isPlayerFullscreen, setIsPlayerFullscreen] = useState(false);
 
   useEffect(() => {
     void api<JoinPayload>(`/api/rooms/${roomId}/join`, { method: "POST", body: JSON.stringify({}) })
@@ -143,6 +147,14 @@ export function WatchRoomPage({ roomId, onLeaveRoom }: Props) {
     };
   }, [roomId, socket]);
 
+  useEffect(() => {
+    const onFullscreenChange = (): void => {
+      setIsPlayerFullscreen(document.fullscreenElement === playerShellRef.current);
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
+
   function emitPlayback(action: "play" | "pause" | "seek" | "rate"): void {
     const video = videoRef.current;
     if (!video || suppressBroadcastRef.current) return;
@@ -168,6 +180,16 @@ export function WatchRoomPage({ roomId, onLeaveRoom }: Props) {
     }
   }
 
+  async function toggleFullscreen(): Promise<void> {
+    const shell = playerShellRef.current;
+    if (!shell) return;
+    if (document.fullscreenElement === shell) {
+      await document.exitFullscreen();
+      return;
+    }
+    await shell.requestFullscreen();
+  }
+
   return (
     <div className="watch-layout">
       <section className="card video-card">
@@ -182,7 +204,7 @@ export function WatchRoomPage({ roomId, onLeaveRoom }: Props) {
         {mediaType === "youtube" ? (
           <iframe src={toYouTubeEmbedUrl(mediaUrl)} title={title} allow="autoplay; encrypted-media" allowFullScreen className="video" />
         ) : (
-          <div className="player-shell">
+          <div ref={playerShellRef} className="player-shell">
             <div className="video-wrap">
               <video
                 ref={videoRef}
@@ -194,8 +216,20 @@ export function WatchRoomPage({ roomId, onLeaveRoom }: Props) {
                 onPause={() => emitPlayback("pause")}
                 onSeeked={() => emitPlayback("seek")}
                 onRateChange={() => emitPlayback("rate")}
+                controlsList="nofullscreen"
                 controls
               />
+              <div className="player-overlay-actions">
+                <button type="button" className="ghost" onClick={() => setShowChatDock((prev) => !prev)}>
+                  {showChatDock ? "Hide Chat" : "Show Chat"}
+                </button>
+                <button type="button" className="ghost" onClick={() => setShowReactionDock((prev) => !prev)}>
+                  {showReactionDock ? "Hide Reactions" : "Show Reactions"}
+                </button>
+                <button type="button" className="ghost" onClick={() => void toggleFullscreen()}>
+                  {isPlayerFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+                </button>
+              </div>
               {actionLoader && (
                 <div className="action-loader">
                   <div className="moon-orbit-loader">
@@ -203,6 +237,13 @@ export function WatchRoomPage({ roomId, onLeaveRoom }: Props) {
                     <span className="moon-orbit" />
                   </div>
                   <p>{actionLoader}</p>
+                </div>
+              )}
+              {showReactionDock && <ReactionsPanel socket={socket} roomId={roomId} attachToPlayer />}
+              <VoiceControls socket={socket} roomId={roomId} attachToPlayer />
+              {showChatDock && (
+                <div className="chat-overlay-wrap">
+                  <ChatPanel socket={socket} roomId={roomId} messages={messages} attachToPlayer onClose={() => setShowChatDock(false)} />
                 </div>
               )}
               <div className="reactions-overlay">
@@ -226,9 +267,7 @@ export function WatchRoomPage({ roomId, onLeaveRoom }: Props) {
         </div>
       </section>
       <div className="side-stack">
-        <ChatPanel socket={socket} roomId={roomId} messages={messages} />
-        <ReactionsPanel socket={socket} roomId={roomId} />
-        <VoiceControls socket={socket} roomId={roomId} />
+        {!showChatDock && <ChatPanel socket={socket} roomId={roomId} messages={messages} />}
       </div>
     </div>
   );

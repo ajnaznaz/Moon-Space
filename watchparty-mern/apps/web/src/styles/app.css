@@ -78,12 +78,34 @@ button { cursor: pointer; border: none; color: #111; font-weight: 600; backgroun
 .video { width: 100%; border-radius: 14px; min-height: 340px; background: #000; border: 1px solid rgba(255,255,255,.06); }
 .video-wrap { position: relative; }
 .video-overlay { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0,0,0,.62); border-radius: 14px; }
+.reaction-dock {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 4;
+  background: rgba(7, 10, 20, 0.88);
+  backdrop-filter: blur(6px);
+}
 .video-meta { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
 .pill-row { display: flex; gap: 8px; }
 .pill { font-size: .82rem; padding: 6px 10px; border-radius: 999px; color: #dfdfdf; border: 1px solid var(--line); background: rgba(15,15,15,.8); }
 .player-shell { display: grid; gap: 10px; }
 .player-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .side-stack { display: grid; gap: 16px; align-content: start; }
+.player-overlay-actions {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  z-index: 7;
+}
+.player-overlay-actions .ghost {
+  background: rgba(8, 10, 20, 0.82);
+  color: #f0f0f0;
+}
 .action-loader {
   position: absolute;
   left: 12px;
@@ -149,13 +171,72 @@ button { cursor: pointer; border: none; color: #111; font-weight: 600; backgroun
 }
 .reaction-bubble img { width: 56px; height: 56px; object-fit: cover; border-radius: 10px; display: block; }
 .reaction-emoji { font-size: 1.8rem; line-height: 1; }
+.chat-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .chat .chat-list { min-height: 240px; max-height: 360px; overflow: auto; background: rgba(7,7,7,.88); border-radius: 14px; border: 1px solid rgba(255,255,255,.06); padding: 10px; display: grid; gap: 8px; }
 .chat-item { margin: 0; padding: 8px 10px; border-radius: 12px; background: rgba(21,21,21,.82); }
 .chat-item p { margin: 4px 0 0; color: #d4d4d4; }
+.chat-overlay-wrap {
+  position: absolute;
+  right: 12px;
+  top: 54px;
+  width: min(320px, 38%);
+  z-index: 7;
+}
+.chat-overlay {
+  background: rgba(8, 10, 20, 0.86);
+  backdrop-filter: blur(8px);
+}
+.chat-overlay .chat-list {
+  min-height: 140px;
+  max-height: 250px;
+  background: rgba(6, 9, 18, 0.82);
+}
 .voice-status-wrap { display: flex; align-items: center; gap: 10px; color: var(--soft); }
 .voice-dot { width: 12px; height: 12px; border-radius: 50%; background: #5b5b5b; }
 .voice-dot.live { background: #f1f1f1; }
 .control-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.voice-floating-wrap {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+.voice-fab {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 7;
+  pointer-events: auto;
+}
+.voice-panel {
+  position: absolute;
+  z-index: 6;
+  pointer-events: auto;
+  background: rgba(8, 10, 20, 0.92);
+  backdrop-filter: blur(8px);
+  min-width: 220px;
+}
+.voice-panel.hidden { display: none; }
+.voice-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: move;
+}
+.voice-panel-head h3 { margin: 0; font-size: 0.95rem; }
+.voice-panel-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.resize-grip {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid rgba(255,255,255,.4);
+  background: rgba(255,255,255,.15);
+  cursor: nwse-resize;
+}
 .cam-grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
 .cam-tile { position: relative; border: 1px solid rgba(255,255,255,.15); border-radius: 12px; overflow: hidden; min-height: 84px; background: rgba(9,9,9,.86); }
 .cam-tile video { width: 100%; height: 100%; object-fit: cover; min-height: 84px; }
@@ -171,6 +252,41 @@ button { cursor: pointer; border: none; color: #111; font-weight: 600; backgroun
 @media (max-width: 900px) {
   .ott-auth-row { grid-template-columns: 1fr; }
   .watch-layout { grid-template-columns: 1fr; }
+  .reaction-dock {
+    left: 8px;
+    right: 8px;
+    bottom: 54px;
+    max-height: 46%;
+    overflow: auto;
+  }
+  .player-overlay-actions {
+    left: 8px;
+    right: 8px;
+    top: 8px;
+    justify-content: space-between;
+  }
+  .chat-overlay-wrap {
+    left: 8px;
+    right: 8px;
+    top: 56px;
+    width: auto;
+  }
+  .voice-floating-wrap {
+    position: static;
+    pointer-events: auto;
+  }
+  .voice-fab {
+    position: static;
+    margin-top: 8px;
+  }
+  .voice-panel {
+    position: static;
+    width: 100% !important;
+    min-height: auto !important;
+  }
+  .voice-panel-head { cursor: default; }
+  .resize-grip { display: none; }
+  .cam-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @keyframes moonSpin {
