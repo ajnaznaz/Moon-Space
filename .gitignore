@@ -1,0 +1,26 @@
+# Keep this repo focused on Moon Space only
+passport/
+photobooth-backend/
+search-system/
+testtoolyt/
+toolyt-services/
+toolyt-web-app/
+toolyt-web-app-backup/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Logs and temp files
+*.log
+*.tmp
+
+# Node artifacts
+**/node_modules/
+**/dist/
+**/coverage/
+**/.cache/
+**/.vite/
+**/*.tsbuildinfo
