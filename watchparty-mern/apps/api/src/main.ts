@@ -34,6 +34,58 @@ const corsOrigin = (origin: string | undefined, callback: (err: Error | null, al
 
 app.use(cors({ origin: corsOrigin, credentials: true }));
 app.use(express.json({ limit: "2mb" }));
+app.use((req, res, next) => {
+  const startedAt = Date.now();
+  const shouldTrace = req.path === "/" || req.path.startsWith("/api");
+  if (shouldTrace) {
+    // #region agent log
+    fetch("http://127.0.0.1:7601/ingest/6c11b2bd-cfa2-4bb3-aa39-7fe4c66e58ea", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "7576e9" },
+      body: JSON.stringify({
+        sessionId: "7576e9",
+        runId: "render-root-investigation",
+        hypothesisId: "H1",
+        location: "apps/api/src/main.ts:41",
+        message: "Incoming request on API service",
+        data: {
+          method: req.method,
+          path: req.path,
+          host: req.get("host"),
+          origin: req.get("origin") ?? null
+        },
+        timestamp: Date.now()
+      })
+    }).catch(() => {});
+    // #endregion
+  }
+
+  res.on("finish", () => {
+    if (!shouldTrace) return;
+    // #region agent log
+    fetch("http://127.0.0.1:7601/ingest/6c11b2bd-cfa2-4bb3-aa39-7fe4c66e58ea", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "7576e9" },
+      body: JSON.stringify({
+        sessionId: "7576e9",
+        runId: "render-root-investigation",
+        hypothesisId: req.path === "/" ? "H2" : "H3",
+        location: "apps/api/src/main.ts:66",
+        message: "Request completed on API service",
+        data: {
+          method: req.method,
+          path: req.path,
+          statusCode: res.statusCode,
+          durationMs: Date.now() - startedAt
+        },
+        timestamp: Date.now()
+      })
+    }).catch(() => {});
+    // #endregion
+  });
+
+  next();
+});
 
 type SubscriptionTier = "free" | "standard" | "premium";
 const tierWeight: Record<SubscriptionTier, number> = { free: 0, standard: 1, premium: 2 };
@@ -176,6 +228,19 @@ app.post("/api/ott/session", authMiddleware, async (req: AuthedRequest, res) => 
 app.post("/api/media/upload", authMiddleware, upload.single("video"), async (req, res) => {
   if (!req.file) return void res.status(400).json({ error: "Missing file" });
   res.status(201).json({ sourceType: "local", sourceUrl: `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`, originalName: req.file.originalname });
+});
+
+app.get("/", (req, res) => {
+  const host = req.get("host") ?? "";
+  const sameHostAsClientOrigin = host.length > 0 && env.CLIENT_ORIGIN.includes(host);
+  if (sameHostAsClientOrigin) {
+    return void res.status(200).json({
+      ok: true,
+      service: "watchparty-api",
+      message: "API is live. Deploy frontend as a Render Static Site and use that URL for the app UI."
+    });
+  }
+  return void res.redirect(302, env.CLIENT_ORIGIN);
 });
 
 app.get("/health", (_, res) => res.json({ ok: true, service: "watchparty-api" }));
