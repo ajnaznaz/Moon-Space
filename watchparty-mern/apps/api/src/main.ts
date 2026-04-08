@@ -17,8 +17,11 @@ import { registerRealtime } from "./realtime.js";
 import { ChatMessageModel, ParticipantModel, RoomModel, UserModel } from "./models.js";
 
 const app = express();
+const configuredClientOrigins = env.CLIENT_ORIGIN.split(",").map((value) => value.trim()).filter(Boolean);
+
 const allowedOrigins = new Set<string>([
-  env.CLIENT_ORIGIN,
+  ...configuredClientOrigins,
+  "https://moon-space.vercel.app",
   "http://localhost:5173",
   "http://127.0.0.1:5173",
   "http://localhost:5174",
@@ -27,8 +30,57 @@ const allowedOrigins = new Set<string>([
 
 const corsOrigin = (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void): void => {
   // Allow non-browser clients and same-origin tools (curl/postman).
-  if (!origin) return callback(null, true);
-  if (allowedOrigins.has(origin)) return callback(null, true);
+  if (!origin) {
+    // #region agent log
+    fetch("http://127.0.0.1:7601/ingest/6c11b2bd-cfa2-4bb3-aa39-7fe4c66e58ea", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "7576e9" },
+      body: JSON.stringify({
+        sessionId: "7576e9",
+        runId: "cors-debug-1",
+        hypothesisId: "H3",
+        location: "apps/api/src/main.ts:31",
+        message: "CORS allowed request without origin header",
+        data: { origin: null },
+        timestamp: Date.now()
+      })
+    }).catch(() => {});
+    // #endregion
+    return callback(null, true);
+  }
+  if (allowedOrigins.has(origin)) {
+    // #region agent log
+    fetch("http://127.0.0.1:7601/ingest/6c11b2bd-cfa2-4bb3-aa39-7fe4c66e58ea", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "7576e9" },
+      body: JSON.stringify({
+        sessionId: "7576e9",
+        runId: "cors-debug-1",
+        hypothesisId: "H1",
+        location: "apps/api/src/main.ts:48",
+        message: "CORS allowed origin",
+        data: { origin, allowed: true },
+        timestamp: Date.now()
+      })
+    }).catch(() => {});
+    // #endregion
+    return callback(null, true);
+  }
+  // #region agent log
+  fetch("http://127.0.0.1:7601/ingest/6c11b2bd-cfa2-4bb3-aa39-7fe4c66e58ea", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "7576e9" },
+    body: JSON.stringify({
+      sessionId: "7576e9",
+      runId: "cors-debug-1",
+      hypothesisId: "H2",
+      location: "apps/api/src/main.ts:65",
+      message: "CORS blocked origin",
+      data: { origin, allowed: false, allowedOrigins: [...allowedOrigins] },
+      timestamp: Date.now()
+    })
+  }).catch(() => {});
+  // #endregion
   return callback(new Error(`CORS blocked for origin: ${origin}`));
 };
 
