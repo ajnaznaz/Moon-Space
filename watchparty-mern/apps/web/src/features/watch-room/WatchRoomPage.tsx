@@ -5,6 +5,7 @@ import { api } from "../../lib/api";
 import { createSocket } from "../../lib/socket";
 import { getToken } from "../../lib/session";
 import { ChatPanel } from "../chat/ChatPanel";
+import { ReactionsPanel } from "./ReactionsPanel";
 import { VoiceControls } from "../voice/VoiceControls";
 
 const SOFT_DRIFT_SEC = 0.8;
@@ -20,6 +21,13 @@ interface JoinPayload {
 interface Props {
   roomId: string;
   onLeaveRoom: () => void;
+}
+
+interface LiveReaction {
+  id: string;
+  kind: "emoji" | "gif";
+  value: string;
+  displayName: string;
 }
 
 function toYouTubeEmbedUrl(input: string): string {
@@ -50,6 +58,7 @@ function toYouTubeEmbedUrl(input: string): string {
 
 export function WatchRoomPage({ roomId, onLeaveRoom }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const suppressBroadcastRef = useRef(false);
   const socket = useMemo(() => createSocket(getToken() || ""), []);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [title, setTitle] = useState("");
@@ -58,6 +67,8 @@ export function WatchRoomPage({ roomId, onLeaveRoom }: Props) {
   const [syncState, setSyncState] = useState<"perfect" | "adjusting">("perfect");
   const [playerError, setPlayerError] = useState<string | null>(null);
   const [isBuffering, setIsBuffering] = useState(false);
+  const [actionLoader, setActionLoader] = useState<string | null>(null);
+  const [liveReactions, setLiveReactions] = useState<LiveReaction[]>([]);
 
   useEffect(() => {
     void api<JoinPayload>(`/api/rooms/${roomId}/join`, { method: "POST", body: JSON.stringify({}) })
@@ -103,6 +114,7 @@ export function WatchRoomPage({ roomId, onLeaveRoom }: Props) {
     socket.on("playback:state", ({ state }: { state: PlaybackState }) => {
       const video = videoRef.current;
       if (!video) return;
+      suppressBroadcastRef.current = true;
       const drift = Math.abs(video.currentTime - state.positionSec);
       if (drift > HARD_DRIFT_SEC) {
         setSyncState("adjusting");
@@ -114,15 +126,27 @@ export function WatchRoomPage({ roomId, onLeaveRoom }: Props) {
       }
       if (state.isPlaying && video.paused) void video.play();
       if (!state.isPlaying && !video.paused) video.pause();
+      video.playbackRate = state.speed;
+      setActionLoader(null);
+      window.setTimeout(() => {
+        suppressBroadcastRef.current = false;
+      }, 250);
+    });
+    socket.on("reaction:new", (reaction: LiveReaction) => {
+      setLiveReactions((prev) => [...prev, reaction].slice(-6));
+      window.setTimeout(() => {
+        setLiveReactions((prev) => prev.filter((item) => item.id !== reaction.id));
+      }, 3600);
     });
     return () => {
       socket.disconnect();
     };
   }, [roomId, socket]);
 
-  function emitPlayback(action: "play" | "pause" | "seek"): void {
+  function emitPlayback(action: "play" | "pause" | "seek" | "rate"): void {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || suppressBroadcastRef.current) return;
+    setActionLoader(action === "rate" ? "syncing speed" : `syncing ${action}`);
     socket.emit("playback:update", {
       roomId,
       action,
@@ -169,8 +193,29 @@ export function WatchRoomPage({ roomId, onLeaveRoom }: Props) {
                 onPlay={() => emitPlayback("play")}
                 onPause={() => emitPlayback("pause")}
                 onSeeked={() => emitPlayback("seek")}
+                onRateChange={() => emitPlayback("rate")}
                 controls
               />
+              {actionLoader && (
+                <div className="action-loader">
+                  <div className="moon-orbit-loader">
+                    <span className="moon-core" />
+                    <span className="moon-orbit" />
+                  </div>
+                  <p>{actionLoader}</p>
+                </div>
+              )}
+              <div className="reactions-overlay">
+                {liveReactions.map((reaction) => (
+                  <div key={reaction.id} className="reaction-bubble">
+                    {reaction.kind === "emoji" ? (
+                      <span className="reaction-emoji">{reaction.value}</span>
+                    ) : (
+                      <img src={reaction.value} alt={`${reaction.displayName} reaction`} />
+                    )}
+                  </div>
+                ))}
+              </div>
               {(isBuffering || playerError) && <div className="video-overlay">{playerError ? <p>{playerError}</p> : <p>Loading stream...</p>}</div>}
             </div>
           </div>
@@ -182,6 +227,7 @@ export function WatchRoomPage({ roomId, onLeaveRoom }: Props) {
       </section>
       <div className="side-stack">
         <ChatPanel socket={socket} roomId={roomId} messages={messages} />
+        <ReactionsPanel socket={socket} roomId={roomId} />
         <VoiceControls socket={socket} roomId={roomId} />
       </div>
     </div>

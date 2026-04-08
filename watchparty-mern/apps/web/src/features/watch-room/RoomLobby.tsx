@@ -55,6 +55,8 @@ export function RoomLobby({ onEnterRoom }: Props) {
   const [ottEntitlementToken, setOttEntitlementToken] = useState<string | null>(null);
   const [ottAccessKey, setOttAccessKey] = useState("");
   const [ottAuthLoading, setOttAuthLoading] = useState(false);
+  const [createLoading, setCreateLoading] = useState(false);
+  const [joinLoading, setJoinLoading] = useState(false);
   const [ottGrantedTier, setOttGrantedTier] = useState<"free" | "standard" | "premium">("free");
   const [error, setError] = useState<string | null>(null);
 
@@ -93,6 +95,7 @@ export function RoomLobby({ onEnterRoom }: Props) {
 
   async function createRoom(e: FormEvent): Promise<void> {
     e.preventDefault();
+    setCreateLoading(true);
     try {
       let sourceType: "local" | "url" | "youtube" | "protected_hls" = mediaType === "ott_demo" ? "protected_hls" : mediaType;
       let sourceUrl = mediaUrl;
@@ -132,16 +135,21 @@ export function RoomLobby({ onEnterRoom }: Props) {
       onEnterRoom(data.roomId);
     } catch (err) {
       setError((err as Error).message);
+    } finally {
+      setCreateLoading(false);
     }
   }
 
   async function joinRoom(e: FormEvent): Promise<void> {
     e.preventDefault();
+    setJoinLoading(true);
     try {
       await api(`/api/rooms/${joinId}/join`, { method: "POST", body: JSON.stringify({ passcode: passcode || undefined }) });
       onEnterRoom(joinId);
     } catch (err) {
       setError((err as Error).message);
+    } finally {
+      setJoinLoading(false);
     }
   }
 
@@ -157,6 +165,15 @@ export function RoomLobby({ onEnterRoom }: Props) {
       </section>
       {mode === "create" ? (
         <form className="card" onSubmit={createRoom}>
+          {createLoading && (
+            <div className="form-loader-overlay">
+              <div className="moon-orbit-loader large">
+                <span className="moon-core" />
+                <span className="moon-orbit" />
+              </div>
+              <p>Creating moon room...</p>
+            </div>
+          )}
           <input value={roomName} onChange={(e) => setRoomName(e.target.value)} placeholder="Room name" required />
           <div className="source-grid">
             <button type="button" className={`source-card ${mediaType === "url" ? "active" : ""}`} onClick={() => setMediaType("url")}>
@@ -179,7 +196,7 @@ export function RoomLobby({ onEnterRoom }: Props) {
             <div className="ott-box">
               <div className="ott-auth-row">
                 <input value={ottAccessKey} onChange={(e) => setOttAccessKey(e.target.value)} placeholder="OTT access key" />
-                <button type="button" onClick={() => void authorizeOtt()} disabled={ottAuthLoading}>
+                <button type="button" onClick={() => void authorizeOtt()} disabled={ottAuthLoading || createLoading}>
                   {ottAuthLoading ? "Authorizing..." : "Authorize"}
                 </button>
               </div>
@@ -211,14 +228,23 @@ export function RoomLobby({ onEnterRoom }: Props) {
             </>
           )}
           <input value={passcode} onChange={(e) => setPasscode(e.target.value)} placeholder="Optional passcode" />
-          <button type="submit">Create & Enter</button>
+          <button type="submit" disabled={createLoading || ottAuthLoading}>{createLoading ? "Please wait..." : "Create & Enter"}</button>
           {error && <p className="error">{error}</p>}
         </form>
       ) : (
         <form className="card" onSubmit={joinRoom}>
+          {joinLoading && (
+            <div className="form-loader-overlay">
+              <div className="moon-orbit-loader large">
+                <span className="moon-core" />
+                <span className="moon-orbit" />
+              </div>
+              <p>Joining room...</p>
+            </div>
+          )}
           <input value={joinId} onChange={(e) => setJoinId(e.target.value)} placeholder="Room ID" required />
           <input value={passcode} onChange={(e) => setPasscode(e.target.value)} placeholder="Passcode (if any)" />
-          <button type="submit">Join room</button>
+          <button type="submit" disabled={joinLoading}>{joinLoading ? "Please wait..." : "Join room"}</button>
           {error && <p className="error">{error}</p>}
         </form>
       )}
