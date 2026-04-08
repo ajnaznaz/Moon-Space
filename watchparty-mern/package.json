@@ -1,0 +1,20 @@
+{
+  "name": "watchparty-mern",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Moon Space watch party platform",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @watchparty/api & npm run dev -w @watchparty/web",
+    "dev:api": "npm run dev -w @watchparty/api",
+    "dev:web": "npm run dev -w @watchparty/web",
+    "build": "npm run build -w @watchparty/shared && npm run build -w @watchparty/api && npm run build -w @watchparty/web",
+    "typecheck": "npm run typecheck -w @watchparty/shared && npm run typecheck -w @watchparty/api && npm run typecheck -w @watchparty/web"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
